@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>iPad HTML Studio</title>
+<style>
+  :root {
+    --bg-dark: #0f172a;
+    --bg-panel: #1e293b;
+    --bg-editor: #090d16;
+    --accent: #38bdf8;
+    --accent-hover: #7dd3fc;
+    --success: #4ade80;
+    --danger: #f87171;
+    --text: #f8fafc;
+    --sub: #94a3b8;
+    --border: #334155;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+    background: var(--bg-dark);
+    color: var(--text);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* トップバー */
+  header {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .brand {
+    font-weight: bold;
+    font-size: 1rem;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  button, .file-label, select {
+    background: #334155;
+    color: var(--text);
+    border: 1px solid #475569;
+    padding: 7px 11px;
+    border-radius: 7px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: 0.15s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:active, .file-label:active { transform: scale(0.97); }
+  button.primary { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+  button.success { background: var(--success); color: #0f172a; border-color: var(--success); }
+  button.danger { background: rgba(248, 113, 113, 0.15); color: var(--danger); border-color: var(--danger); }
+  button.active-mode { background: #e2e8f0; color: #0f172a; border-color: #fff; }
+
+  input[type="file"] { display: none; }
+
+  /* メインワークスペース */
+  .workspace {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 42% 58%;
+    height: calc(100dvh - 52px);
+    overflow: hidden;
+  }
+
+  .workspace.mode-preview { grid-template-columns: 0% 100%; }
+  .workspace.mode-editor { grid-template-columns: 100% 0%; }
+
+  /* エディタ領域 */
+  .editor-pane {
+    display: flex;
+    flex-direction: column;
+    border-right: 2px solid var(--border);
+    background: var(--bg-editor);
+    overflow: hidden;
+  }
+
+  .pane-toolbar {
+    background: #131c2e;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    color: var(--sub);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    gap: 6px;
+  }
+
+  textarea {
+    flex: 1;
+    width: 100%;
+    background: var(--bg-editor);
+    color: #e2e8f0;
+    border: none;
+    padding: 12px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* プレビュー領域 */
+  .preview-pane {
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    overflow: hidden;
+  }
+
+  iframe {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #ffffff;
+  }
+
+  /* レスポンシブ（縦画面時は上下分割） */
+  @media (max-width: 768px) {
+    .workspace {
+      grid-template-columns: 100%;
+      grid-template-rows: 38% 62%;
+    }
+    .workspace.mode-preview { grid-template-rows: 0% 100%; }
+    .workspace.mode-editor { grid-template-rows: 100% 0%; }
+    .editor-pane { border-right: none; border-bottom: 2px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">⚡ iPad HTML Studio</div>
+
+  <!-- 表示モード切替 -->
+  <div class="btn-group">
+    <button id="btnSplit" class="active-mode" onclick="setMode('split')">◫ 分割</button>
+    <button id="btnPreview" onclick="setMode('preview')">🖥️ プレビュー全画面</button>
+    <button id="btnEditor" onclick="setMode('editor')">📝 コード全画面</button>
+  </div>
+
+  <!-- アクションボタン -->
+  <div class="btn-group">
+    <label class="file-label">
+      📂 .htmlを開く
+      <input type="file" id="fileInput" accept=".html,.htm,.txt">
+    </label>
+    <button class="primary" onclick="runCode()">▶ 実行更新</button>
+    <button class="success" onclick="openStandalone()">🖨️ 別タブ / PDF印刷</button>
+  </div>
+</header>
+
+<div class="workspace" id="workspace">
+  <!-- 左（上）：コードエディタ -->
+  <div class="editor-pane">
+    <div class="pane-toolbar">
+      <div class="btn-group">
+        <button onclick="pasteCode()">📋 ペースト</button>
+        <button onclick="saveToLibrary()">💾 保存</button>
+        <select id="savedList" onchange="loadFromLibrary()">
+          <option value="">📚 保存済みコード...</option>
+        </select>
+      </div>
+      <div class="btn-group">
+        <button onclick="downloadHTML()">⬇️ .html保存</button>
+        <button class="danger" onclick="clearCode()">🗑️ クリア</button>
+      </div>
+    </div>
+    <textarea id="codeArea" spellcheck="false" placeholder="ここにHTMLコードを貼り付けるか、上の「📂 .htmlを開く」からファイルを選択してください。"></textarea>
+  </div>
+
+  <!-- 右（下）：リアルタイムプレビュー -->
+  <div class="preview-pane">
+    <div class="pane-toolbar" style="background:#f1f5f9; color:#475569; border-bottom:1px solid #cbd5e1;">
+      <span>プレビュー画面（自動更新）</span>
+      <span id="statusText" style="font-weight:bold; color:#0284c7;">Ready</span>
+    </div>
+    <iframe id="previewFrame" sandbox="allow-scripts allow-same-origin allow-modals allow-popups"></iframe>
+  </div>
+</div>
+
+<script>
+  const codeArea = document.getElementById('codeArea');
+  const previewFrame = document.getElementById('previewFrame');
+  const workspace = document.getElementById('workspace');
+  const fileInput = document.getElementById('fileInput');
+  const savedList = document.getElementById('savedList');
+  const statusText = document.getElementById('statusText');
+
+  const STORAGE_KEY = 'ipad_html_studio_snippets_v1';
+  const LAST_CODE_KEY = 'ipad_html_studio_last_code';
+
+  // 初期サンプルコード
+  const DEFAULT_CODE = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: sans-serif; padding: 24px; background: #f8fafc; color: #1e293b; text-align: center; }
+  .box { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); max-width: 480px; margin: 20px auto; }
+  h1 { color: #0284c7; font-size: 1.4rem; }
+  p { color: #475569; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <h1>🎉 iPad HTML Studio へようこそ！</h1>
+    <p>左（または上）の入力欄にHTMLコードを貼り付けると、ここにリアルタイムでプレビューが表示されます。</p>
+    <p><strong>「📂 .htmlを開く」</strong>からiPad内のHTMLファイルを読み込むこともできます。</p>
+  </div>
+</body>
+</html>`;
+
+  // 起動時の復元
+  window.addEventListener('DOMContentLoaded', () => {
+    let savedCode = null;
+    try { savedCode = localStorage.getItem(LAST_CODE_KEY); } catch(e) {}
+    codeArea.value = savedCode || DEFAULT_CODE;
+    runCode();
+    updateLibraryDropdown();
+  });
+
+  // コード実行
+  function runCode() {
+    const code = codeArea.value;
+    previewFrame.srcdoc = code;
+    try { localStorage.setItem(LAST_CODE_KEY, code); } catch(e) {}
+    statusText.textContent = '更新完了 (' + new Date().toLocaleTimeString() + ')';
+  }
+
+  // 入力時に自動プレビュー更新（デバウンス処理）
+  let timer = null;
+  codeArea.addEventListener('input', () => {
+    statusText.textContent = '編集中...';
+    clearTimeout(timer);
+    timer = setTimeout(runCode, 400);
+  });
+
+  // 画面モード切替
+  function setMode(mode) {
+    workspace.classList.remove('mode-preview', 'mode-editor');
+    document.getElementById('btnSplit').classList.remove('active-mode');
+    document.getElementById('btnPreview').classList.remove('active-mode');
+    document.getElementById('btnEditor').classList.remove('active-mode');
+
+    if (mode === 'preview') {
+      workspace.classList.add('mode-preview');
+      document.getElementById('btnPreview').classList.add('active-mode');
+    } else if (mode === 'editor') {
+      workspace.classList.add('mode-editor');
+      document.getElementById('btnEditor').classList.add('active-mode');
+    } else {
+      document.getElementById('btnSplit').classList.add('active-mode');
+    }
+  }
+
+  // クリップボードからペースト
+  async function pasteCode() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        codeArea.value = text;
+        runCode();
+      }
+    } catch (err) {
+      alert('ブラウザの制限により自動ペーストできない場合は、入力欄を長押しして「ペースト」を選択してください。');
+      codeArea.focus();
+    }
+  }
+
+  // クリア
+  function clearCode() {
+    if (confirm('入力欄のコードを消去しますか？')) {
+      codeArea.value = '';
+      runCode();
+      codeArea.focus();
+    }
+  }
+
+  // iPadの「ファイル」から .html を読み込む
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      codeArea.value = ev.target.result;
+      runCode();
+      setMode('preview'); // 読み込んだら見やすいようにプレビュー全画面へ
+    };
+    reader.readAsText(file);
+    fileInput.value = '';
+  });
+
+  // 別タブで開く（PDF印刷・全画面動作用）
+  function openStandalone() {
+    const w = window.open();
+    if (!w) {
+      alert('ポップアップがブロックされました。Safariの設定でポップアップを許可するか、プレビュー画面内の印刷ボタンを押してください。');
+      return;
+    }
+    w.document.open();
+    w.document.write(codeArea.value);
+    w.document.close();
+  }
+
+  // .html ファイルとしてダウンロード
+  function downloadHTML() {
+    const name = prompt('保存するファイル名を入力してください', 'index.html');
+    if (!name) return;
+    const fileName = name.endsWith('.html') ? name : name + '.html';
+    const blob = new Blob([codeArea.value], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // マイライブラリ保存機能（LocalStorage）
+  function getLibrary() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveToLibrary() {
+    const title = prompt('保存する名前を入力してください（例：福井大_薄膜シミュレーター）');
+    if (!title) return;
+    const lib = getLibrary();
+    lib[title] = codeArea.value;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(lib));
+      updateLibraryDropdown();
+      savedList.value = title;
+      alert(`「${title}」を保存しました！`);
+    } catch (e) {
+      alert('保存に失敗しました（プライベートブラウズ中か容量上限の可能性があります）。');
+    }
+  }
+
+  function loadFromLibrary() {
+    const title = savedList.value;
+    if (!title) return;
+    const lib = getLibrary();
+    if (lib[title]) {
+      codeArea.value = lib[title];
+      runCode();
+    }
+  }
+
+  function updateLibraryDropdown() {
+    const lib = getLibrary();
+    savedList.innerHTML = '<option value="">📚 保存済みコード...</option>';
+    Object.keys(lib).forEach(title => {
+      const opt = document.createElement('option');
+      opt.value = title;
+      opt.textContent = title;
+      savedList.appendChild(opt);
+    });
+  }
+</script>
+</body>
+</html>
